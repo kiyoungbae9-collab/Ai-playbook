@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1120">
+<title>AI 프로젝트 비서</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%232f6fed'/%3E%3Crect x='8' y='10' width='16' height='13' rx='4' fill='white'/%3E%3Ccircle cx='13' cy='16.5' r='1.8' fill='%232f6fed'/%3E%3Ccircle cx='19' cy='16.5' r='1.8' fill='%232f6fed'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<div class="app">
+  <header class="chat-header">
+    <div class="bot-avatar" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-bot"/></svg></div>
+    <div class="chat-title">
+      <h1>AI 프로젝트 비서</h1>
+      <p><span class="live-dot" aria-hidden="true"></span><span class="subtitle"><span id="project-name">프로젝트</span> 자료 기반 답변</span></p>
+    </div>
+    <div class="header-actions">
+      <button type="button" class="btn ghost" id="open-docs"><svg viewBox="0 0 24 24"><use href="#i-folder"/></svg><span>자료 <b id="doc-count">0</b>건</span></button>
+      <button type="button" class="btn ghost" id="open-guide"><svg viewBox="0 0 24 24"><use href="#i-info"/></svg><span>사용 가이드</span></button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <main id="messages" class="messages" aria-live="polite">
+    <section id="welcome" class="welcome">
+      <div class="bot-avatar large" aria-hidden="true"><svg viewBox="0 0 24 24"><use href="#i-bot"/></svg></div>
+      <h2>프로젝트 자료를 기반으로 질문해 보세요</h2>
+      <p>제안서·보고서·엑셀·회의록을 올리면, 관련 자료를 찾아 출처와 함께 답하고 투자비·회수기간을 계산해 드립니다.</p>
+      <div class="welcome-steps">
+        <div><b>1</b>입력창 왼쪽 <span class="kbd">+</span> 버튼이나 끌어 놓기로 자료 업로드</div>
+        <div><b>2</b>궁금한 내용을 자연어로 질문</div>
+        <div><b>3</b>출처 번호를 눌러 원문 확인</div>
+      </div>
+      <div class="suggestions" id="suggestions"></div>
+    </section>
+  </main>
+
+  <footer class="composer-wrap">
+    <form id="composer" class="composer" autocomplete="off">
+      <button type="button" class="icon-btn" id="attach" title="자료 올리기" aria-label="자료 올리기"><svg viewBox="0 0 24 24"><use href="#i-plus"/></svg></button>
+      <textarea id="input" rows="1" placeholder="추가 질문을 입력하세요. (예: 25대 설치 시 투자비는?, 다른 바이어와 비교해 줘 등)" aria-label="질문 입력"></textarea>
+      <button type="submit" class="icon-btn send" id="send" title="보내기 (Enter)" aria-label="보내기"><svg viewBox="0 0 24 24"><use href="#i-send"/></svg></button>
+      <button type="button" class="icon-btn stop" id="stop" title="답변 중단" aria-label="답변 중단" hidden><svg viewBox="0 0 24 24"><use href="#i-stop"/></svg></button>
+    </form>
+    <button type="button" class="btn outline" id="new-chat"><svg viewBox="0 0 24 24"><use href="#i-chat-plus"/></svg><span>새 대화</span></button>
+  </footer>
+  <p class="composer-hint">Enter 보내기 · Shift+Enter 줄바꿈 · AI 답변은 반드시 원문 출처로 확인하세요.</p>
+</div>
+
+<input type="file" id="file-input" multiple accept=".pdf,.xlsx,.xlsm,.docx,.pptx,.csv,.txt,.md" hidden>
+<div id="drop-overlay" class="drop-overlay" hidden><div>여기에 놓으면 프로젝트 자료로 올라갑니다</div></div>
+<div id="tooltip" class="tooltip" role="tooltip" hidden></div>
+<div id="toast" class="toast" role="status" hidden></div>
+
+<dialog id="docs-dialog" class="dialog wide">
+  <header><h2>프로젝트 자료</h2><button type="button" class="icon-btn" data-close aria-label="닫기"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button></header>
+  <div class="dropzone" id="dropzone">
+    <svg viewBox="0 0 24 24"><use href="#i-upload"/></svg>
+    <p>파일을 끌어 놓거나 <button type="button" class="link" id="pick-files">파일 선택</button></p>
+    <small>PDF, Excel(.xlsx), Word(.docx), PowerPoint(.pptx), CSV, TXT · 파일당 최대 <span id="max-mb">50</span>MB</small>
+  </div>
+  <ul id="doc-list" class="doc-list"></ul>
+</dialog>
+
+<dialog id="guide-dialog" class="dialog">
+  <header><h2>사용 가이드</h2><button type="button" class="icon-btn" data-close aria-label="닫기"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button></header>
+  <div class="guide">
+    <h3>이렇게 쓰세요</h3>
+    <ol>
+      <li><b>자료 올리기</b> — 입력창 왼쪽 <span class="kbd">+</span> 버튼, 상단 <b>자료</b> 버튼, 또는 화면에 파일을 끌어 놓습니다. 올린 자료는 팀 전체가 함께 씁니다.</li>
+      <li><b>질문하기</b> — "KenCity 15대 냉동 컨테이너 사업의 투자비와 회수기간을 분석해 줘"처럼 평소 말투로 묻습니다.</li>
+      <li><b>출처 확인</b> — 답변 속 <sup class="cite static">1</sup> 번호에 마우스를 올리면 근거 문장이, 누르면 원문(PDF는 해당 쪽)이 열립니다.</li>
+      <li><b>계산 결과</b> — 투자비·회수기간은 AI가 암산하지 않고 계산 도구로 구합니다. <b>계산 조건 수정</b>으로 숫자를 바꿔 바로 다시 계산하고, <b>Excel로 저장</b>으로 내려받을 수 있습니다.</li>
+      <li><b>보고서</b> — 답변 아래 <b>이 결과로 보고서 작성</b>을 누르면 사업 검토서 초안을 씁니다.</li>
+    </ol>
+    <h3>알아 두세요</h3>
+    <ul>
+      <li>스캔한 이미지 PDF는 글자를 읽지 못합니다. 텍스트가 있는 PDF로 올려 주세요.</li>
+      <li>회수기간은 0년차에 투자, 1년차부터 운영 현금흐름이 생긴다고 보고 세전 기준으로 계산합니다.</li>
+      <li>AI 답변은 틀릴 수 있습니다. 중요한 의사결정 전에는 출처 원문을 꼭 확인하세요.</li>
+    </ul>
+  </div>
+</dialog>
+
+<dialog id="edit-dialog" class="dialog">
+  <form method="dialog" id="edit-form">
+    <header><h2>계산 조건 수정</h2><button type="button" class="icon-btn" data-close aria-label="닫기"><svg viewBox="0 0 24 24"><use href="#i-x"/></svg></button></header>
+    <div class="edit-body" id="edit-body"></div>
+    <footer>
+      <button type="button" class="btn ghost" data-close>취소</button>
+      <button type="submit" class="btn outline" value="apply">다시 계산</button>
+      <button type="submit" class="btn primary" value="ask">다시 계산하고 AI 해석 요청</button>
+    </footer>
+  </form>
+</dialog>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-bot" viewBox="0 0 24 24"><rect x="4" y="7" width="16" height="12" rx="4" fill="currentColor" opacity=".18"/><rect x="4" y="7" width="16" height="12" rx="4" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9.5" cy="13" r="1.6" fill="currentColor"/><circle cx="14.5" cy="13" r="1.6" fill="currentColor"/><path d="M12 7V4.5M12 4.5h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M2.5 12v3M21.5 12v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.6" fill="currentColor"/><path d="M4.5 20c.8-3.7 3.8-5.8 7.5-5.8s6.7 2.1 7.5 5.8" fill="currentColor"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M21 3 10.5 13.5M21 3l-6.5 18-4-7.5L3 9.5 21 3Z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" stroke-linecap="round"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2" fill="currentColor"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-folder" viewBox="0 0 24 24"><path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2v-10Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 11v5.5M12 7.8h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-chat-plus" viewBox="0 0 24 24"><path d="M20 12a8 8 0 0 1-11.8 7L4 20l1.1-3.9A8 8 0 1 1 20 12Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M12 8.5v7M8.5 12h7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15V4m0 0L7.5 8.5M12 4l4.5 4.5M4.5 15v3a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="1.9"/><path d="m15 15 5 5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></symbol>
+  <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4h6v6M20 4l-9 9M18 14v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V5h5v2M6.5 7l1 12.5h9L17.5 7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M15.5 8.5V6.5a2 2 0 0 0-2-2h-7a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+</svg>
+</body>
+</html>
