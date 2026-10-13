@@ -2,7 +2,7 @@
 // 각본: (1) 자료 검색 → (2) 투자비 계산 → (3) 출처를 단 최종 답변.
 import http from "node:http";
 
-export function startFakeAnthropic({ port = 0 } = {}) {
+export function startFakeAnthropic({ port = 0, delayMs = 2 } = {}) {
   const requests = [];
   const server = http.createServer(async (req, res) => {
     if (req.method !== "POST" || !req.url.startsWith("/v1/messages")) {
@@ -14,7 +14,7 @@ export function startFakeAnthropic({ port = 0 } = {}) {
     const body = JSON.parse(raw);
     requests.push({ url: req.url, headers: req.headers, body });
     res.writeHead(200, { "Content-Type": "text/event-stream", "Cache-Control": "no-cache" });
-    await streamMessage(res, body, script(body));
+    await streamMessage(res, body, script(body), delayMs);
     res.end();
   });
   return new Promise((resolve) => {
@@ -100,7 +100,7 @@ function allSearchResults(messages) {
   return out;
 }
 
-async function streamMessage(res, body, { stop, blocks }) {
+async function streamMessage(res, body, { stop, blocks }, delayMs) {
   const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify({ type: event, ...data })}\n\n`);
   send("message_start", {
     message: { id: `msg_${Math.random().toString(16).slice(2)}`, type: "message", role: "assistant", model: body.model, content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 1200, output_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } },
@@ -114,7 +114,7 @@ async function streamMessage(res, body, { stop, blocks }) {
       for (const citation of block.citations ?? []) send("content_block_delta", { index, delta: { type: "citations_delta", citation } });
       for (const piece of block.text.match(/[\s\S]{1,12}/g) ?? []) {
         send("content_block_delta", { index, delta: { type: "text_delta", text: piece } });
-        await new Promise((r) => setTimeout(r, 2));
+        await new Promise((r) => setTimeout(r, delayMs));
       }
     } else if (block.type === "tool_use") {
       send("content_block_start", { index, content_block: { type: "tool_use", id: block.id, name: block.name, input: {} } });
@@ -129,8 +129,8 @@ async function streamMessage(res, body, { stop, blocks }) {
   send("message_stop", {});
 }
 
-// 단독 실행: node test/fake-anthropic.js 4100
+// 단독 실행: node test/fake-anthropic.js [포트=4100] [글자 묶음당 지연 ms=2]
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const fake = await startFakeAnthropic({ port: Number(process.argv[2]) || 4100 });
+  const fake = await startFakeAnthropic({ port: Number(process.argv[2]) || 4100, delayMs: Number(process.argv[3]) || 2 });
   console.log(`가짜 Claude API: ${fake.url}`);
 }
